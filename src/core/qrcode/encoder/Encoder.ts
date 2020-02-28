@@ -80,7 +80,7 @@ export default class Encoder {
     //   return encode(content, ecLevel, null)
     // }
 
-    public static encode(content: string,
+    public static encode(content: string | Uint8Array,
         ecLevel: ErrorCorrectionLevel,
         hints: Map<EncodeHintType, any> = null): QRCode /*throws WriterException*/ {
 
@@ -212,7 +212,8 @@ export default class Encoder {
      * Choose the best mode by examining the content. Note that 'encoding' is used as a hint;
      * if it is Shift_JIS, and the input is only double-byte Kanji, then we return {@link Mode#KANJI}.
      */
-    public static chooseMode(content: string, encoding: string = null): Mode {
+    public static chooseMode(content: string | Uint8Array, encoding: string = null): Mode {
+        if (content instanceof Uint8Array){return Mode.BYTE;}
         if (CharacterSetECI.SJIS.getName() === encoding && this.isOnlyDoubleByteKanji(content)) {
             // Choose Kanji mode if all input are double-byte characters
             return Mode.KANJI;
@@ -500,10 +501,11 @@ export default class Encoder {
     /**
      * Append "bytes" in "mode" mode (encoding) into "bits". On success, store the result in "bits".
      */
-    public static appendBytes(content: string,
+    public static appendBytes(content: string | Uint8Array,
         mode: Mode,
         bits: BitArray,
         encoding: string): void /*throws WriterException*/ {
+        if (content instanceof Uint8Array){return Encoder.append8BitBytes(content, bits, encoding);}
         switch (mode) {
             case Mode.NUMERIC:
                 Encoder.appendNumericBytes(content, bits);
@@ -579,7 +581,14 @@ export default class Encoder {
         }
     }
 
-    public static append8BitBytes(content: string, bits: BitArray, encoding: string): void {
+    public static append8BitBytes(content: string | Uint8Array, bits: BitArray, encoding: string): void {
+        if (content instanceof Uint8Array){
+          for (let i = 0, length = content.length; i !== length; i++) {
+              const b = content[i];
+              bits.appendBits(b, 8);
+          }
+          return;
+        }
         let bytes: Uint8Array;
         try {
             bytes = StringEncoding.encode(content, encoding);

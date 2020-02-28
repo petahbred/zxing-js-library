@@ -26,7 +26,7 @@ class BrowserQRCodeSvgWriter {
      * @param hints
      */
     public write(
-        contents: string,
+        contents: string | Uint8Array,
         width: number,
         height: number,
         hints: Map<EncodeHintType, any> = null
@@ -68,7 +68,7 @@ class BrowserQRCodeSvgWriter {
      */
     public writeToDom(
         containerElement: string | HTMLElement,
-        contents: string,
+        contents: string | Uint8Array,
         width: number,
         height: number,
         hints: Map<EncodeHintType, any> = null
