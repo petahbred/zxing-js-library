@@ -106,6 +106,13 @@ export default class Encoder {
                 this.appendECI(eci, headerBits);
             }
         }
+        if (hints !== null && hints.has(EncodeHintType.STRUCTURED_APPEND)){
+          const appendHint: Array<number> = hints.get(EncodeHintType.STRUCTURED_APPEND);
+          headerBits.appendBits(3, 4);//structured extend
+          headerBits.appendBits(appendHint[0], 4);//current frame number
+          headerBits.appendBits(appendHint[1], 4);//total frame count
+          headerBits.appendBits(appendHint[2], 8);//parity byte
+        }
 
         // (With ECI in place,) Write the mode marker
         this.appendModeInfo(mode, headerBits);

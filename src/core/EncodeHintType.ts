@@ -101,6 +101,13 @@ enum EncodeHintType {
      * (Type {@link Integer}, or {@link String} representation of the integer value).
      */
     QR_VERSION,
+
+    /**
+     * Structured append data.
+     * (Type {@link Array<number>}, containing sequence number, sequence size, parity byte in that order).
+     */
+    STRUCTURED_APPEND,
+
 }
 
 export default EncodeHintType;
