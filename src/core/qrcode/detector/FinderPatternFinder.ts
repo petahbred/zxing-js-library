@@ -42,13 +42,14 @@ import NotFoundException from '../../NotFoundException';
  */
 export default class FinderPatternFinder {
 
-    private static CENTER_QUORUM = 2;
+    private static CENTER_QUORUM = 3; // if detected more than this, sets true. think about starting from 5 and going down to 2 (more picky to less picky)
     protected static MIN_SKIP = 3; // 1 pixel/module times 3 modules/center
     protected static MAX_MODULES = 57; // support up to version 10 for mobile clients
 
     private possibleCenters: FinderPattern[];
     private hasSkipped: boolean;
     private crossCheckStateCount: Int32Array;
+    private possibleCodes: [FinderPattern[]]; // support for multiple codes per image - stores groups of 3 finders suspected to be part of one code
 
     /**
      * <p>Creates a finder that will search the image for three finder patterns.</p>
@@ -73,6 +74,10 @@ export default class FinderPatternFinder {
         return this.possibleCenters;
     }
 
+    protected getPossibleCodes(): FinderPattern[][] {
+        return this.possibleCodes;
+    }
+
     public find(hints: Map<DecodeHintType, any>): FinderPatternInfo /*throws NotFoundException */ {
         const tryHarder: boolean = (hints !== null && hints !== undefined) && undefined !== hints.get(DecodeHintType.TRY_HARDER);
         const pureBarcode: boolean = (hints !== null && hints !== undefined) && undefined !== hints.get(DecodeHintType.PURE_BARCODE);
@@ -91,6 +96,10 @@ export default class FinderPatternFinder {
             iSkip = FinderPatternFinder.MIN_SKIP;
         }
 
+        // TODO: when the topLeft & topRight is found, find the bottomLeft
+        // then, search to the right of topRight... if another is found (topLeft) find topRight & bottomLeft
+        // else, start next search below bottomLeft
+        // for each three finders found, add to currentQRCluster, evaluate, then add currentQRCluster to possibleQRClusters 
         let done: boolean = false;
         const stateCount = new Int32Array(5);
         for (let i = iSkip - 1; i < maxI && !done; i += iSkip) {
@@ -166,12 +175,14 @@ export default class FinderPatternFinder {
                     }
                 }
             }
+            // once full width has been searched
             if (FinderPatternFinder.foundPatternCross(stateCount)) {
                 const confirmed: boolean = this.handlePossibleCenter(stateCount, i, maxJ, pureBarcode);
                 if (confirmed === true) {
                     iSkip = stateCount[0];
                     if (this.hasSkipped) {
                         // Found a third one
+                        console.log('A third...?')
                         done = this.haveMultiplyConfirmedCenters();
                     }
                 }
@@ -596,10 +607,42 @@ export default class FinderPatternFinder {
         }
 
         const possibleCenters = this.possibleCenters;
+        let unusedCenters = new Set(possibleCenters);
 
         let average: float;
         // Filter outlier possibilities whose module size is too different
         if (startSize > 3) {
+            // group finders where h1xw1, h1xw2, h2xw1
+            // currently does not account for top1 being a bottomleft corner
+            unusedCenters.forEach(top1 => {
+                let bottomLeft: FinderPattern;
+                // remove from set so we dont compare it to itself
+                unusedCenters.delete(top1);
+                unusedCenters.forEach(top2 => {
+                    // are at the same height on image (possibe top corners)
+                    if(top1.getY() === top2.getY()){
+                        console.log(`Possible match: ${top1} & ${top2}`);
+                        // get horizontal distance between the two
+                        let Xdistance = top2.getX() - top1.getX();
+                        let Ydistance = Xdistance > 0 ? Xdistance + top1.getY() : Math.abs(Xdistance) + top2.getY();
+                        unusedCenters.forEach(bottom => {
+                            if (bottom.getX() === top1.getX() &&  bottom.getY() === Ydistance && !bottomLeft) { 
+                                // found three corners of a square!
+                                console.log(`It worked??`)
+                                bottomLeft = bottom;
+                                unusedCenters.delete(top2);
+                                unusedCenters.delete(bottom);
+                                // just print for now
+                                console.log(`Corners found! ${top1}, ${top2}, ${bottom}`);
+                                // this.possibleCodes.push([top1, top2, bottomLeft]);
+                                // break; no breaks in forEach or array destructuring in TS
+                            }
+                        })
+                    }
+                })
+            })
+            console.log(`Grouped codes: ${this.possibleCodes} & unused corners: ${unusedCenters}`);
+
             // But we can only afford to do so if we have at least 4 possibilities to choose from
             let totalModuleSize: float = 0.0;
             let square: float = 0.0;
