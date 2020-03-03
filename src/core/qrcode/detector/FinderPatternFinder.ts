@@ -49,7 +49,7 @@ export default class FinderPatternFinder {
     private possibleCenters: FinderPattern[];
     private hasSkipped: boolean;
     private crossCheckStateCount: Int32Array;
-    private possibleCodes: [FinderPattern[]]; // support for multiple codes per image - stores groups of 3 finders suspected to be part of one code
+    private possibleCodes: FinderPattern[][];
 
     /**
      * <p>Creates a finder that will search the image for three finder patterns.</p>
@@ -78,7 +78,7 @@ export default class FinderPatternFinder {
         return this.possibleCodes;
     }
 
-    public find(hints: Map<DecodeHintType, any>): FinderPatternInfo /*throws NotFoundException */ {
+    public find(hints: Map<DecodeHintType, any>): FinderPatternInfo[] /*throws NotFoundException */ {
         const tryHarder: boolean = (hints !== null && hints !== undefined) && undefined !== hints.get(DecodeHintType.TRY_HARDER);
         const pureBarcode: boolean = (hints !== null && hints !== undefined) && undefined !== hints.get(DecodeHintType.PURE_BARCODE);
         const image = this.image;
@@ -189,10 +189,11 @@ export default class FinderPatternFinder {
             }
         }
 
-        const patternInfo: FinderPattern[] = this.selectBestPatterns();
+        const patternInfo: FinderPattern[][] = this.selectBestPatterns();
         ResultPoint.orderBestPatterns(patternInfo);
 
-        return new FinderPatternInfo(patternInfo);
+        const info = patternInfo.map(item => new FinderPatternInfo(item))
+        return info;
     }
 
     /**
@@ -598,7 +599,7 @@ export default class FinderPatternFinder {
      *         size differs from the average among those patterns the least
      * @throws NotFoundException if 3 such finder patterns do not exist
      */
-    private selectBestPatterns(): FinderPattern[] /*throws NotFoundException */ {
+    private selectBestPatterns(): FinderPattern[][] /*throws NotFoundException */ {
 
         const startSize = this.possibleCenters.length;
         if (startSize < 3) {
@@ -609,11 +610,12 @@ export default class FinderPatternFinder {
         const possibleCenters = this.possibleCenters;
         let unusedCenters = new Set(possibleCenters);
 
+        let possibleCodes = [];
         let average: float;
         // Filter outlier possibilities whose module size is too different
         if (startSize > 3) {
             // group finders where h1xw1, h1xw2, h2xw1
-            // currently does not account for top1 being a bottomleft corner
+            // TODO: currently does not account for top1 being a bottomleft corner
             unusedCenters.forEach(top1 => {
                 let bottomLeft: FinderPattern;
                 // remove from set so we dont compare it to itself
@@ -621,27 +623,26 @@ export default class FinderPatternFinder {
                 unusedCenters.forEach(top2 => {
                     // are at the same height on image (possibe top corners)
                     if(top1.getY() === top2.getY()){
-                        console.log(`Possible match: ${top1} & ${top2}`);
                         // get horizontal distance between the two
                         let Xdistance = top2.getX() - top1.getX();
                         let Ydistance = Xdistance > 0 ? Xdistance + top1.getY() : Math.abs(Xdistance) + top2.getY();
                         unusedCenters.forEach(bottom => {
                             if (bottom.getX() === top1.getX() &&  bottom.getY() === Ydistance && !bottomLeft) { 
                                 // found three corners of a square!
-                                console.log(`It worked??`)
                                 bottomLeft = bottom;
                                 unusedCenters.delete(top2);
                                 unusedCenters.delete(bottom);
                                 // just print for now
                                 console.log(`Corners found! ${top1}, ${top2}, ${bottom}`);
-                                // this.possibleCodes.push([top1, top2, bottomLeft]);
+                                possibleCodes.push([top1, top2, bottomLeft]);
                                 // break; no breaks in forEach or array destructuring in TS
                             }
                         })
                     }
                 })
             })
-            console.log(`Grouped codes: ${this.possibleCodes} & unused corners: ${unusedCenters}`);
+            console.log(`Grouped codes: ${possibleCodes} 
+                        & Unused corners: ${unusedCenters}`);
 
             // But we can only afford to do so if we have at least 4 possibilities to choose from
             let totalModuleSize: float = 0.0;
@@ -704,10 +705,13 @@ export default class FinderPatternFinder {
             possibleCenters.splice(3); // this is not realy necessary as we only return first 3 anyway
         }
 
-        return [
+        // multiple codes in one image
+        if(possibleCodes.length > 1) return possibleCodes;
+
+        return [[
             possibleCenters[0],
             possibleCenters[1],
             possibleCenters[2]
-        ];
+        ]];
     }
 }

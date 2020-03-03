@@ -62,44 +62,46 @@ export default class ResultPoint {
      *
      * @param patterns array of three {@code ResultPoint} to order
      */
-    public static orderBestPatterns(patterns: Array<ResultPoint>): void {
+    public static orderBestPatterns(patterns: ResultPoint[][]): void {
 
-        // Find distances between pattern centers
-        const zeroOneDistance = this.distance(patterns[0], patterns[1]);
-        const oneTwoDistance = this.distance(patterns[1], patterns[2]);
-        const zeroTwoDistance = this.distance(patterns[0], patterns[2]);
+        patterns.forEach(item => {
+            // Find distances between pattern centers
+            const zeroOneDistance = this.distance(item[0], item[1]);
+            const oneTwoDistance = this.distance(item[1], item[2]);
+            const zeroTwoDistance = this.distance(item[0], item[2]);
 
-        let pointA: ResultPoint;
-        let pointB: ResultPoint;
-        let pointC: ResultPoint;
-        // Assume one closest to other two is B; A and C will just be guesses at first
-        if (oneTwoDistance >= zeroOneDistance && oneTwoDistance >= zeroTwoDistance) {
-            pointB = patterns[0];
-            pointA = patterns[1];
-            pointC = patterns[2];
-        } else if (zeroTwoDistance >= oneTwoDistance && zeroTwoDistance >= zeroOneDistance) {
-            pointB = patterns[1];
-            pointA = patterns[0];
-            pointC = patterns[2];
-        } else {
-            pointB = patterns[2];
-            pointA = patterns[0];
-            pointC = patterns[1];
-        }
+            let pointA: ResultPoint;
+            let pointB: ResultPoint;
+            let pointC: ResultPoint;
+            // Assume one closest to other two is B; A and C will just be guesses at first
+            if (oneTwoDistance >= zeroOneDistance && oneTwoDistance >= zeroTwoDistance) {
+                pointB = item[0];
+                pointA = item[1];
+                pointC = item[2];
+            } else if (zeroTwoDistance >= oneTwoDistance && zeroTwoDistance >= zeroOneDistance) {
+                pointB = item[1];
+                pointA = item[0];
+                pointC = item[2];
+            } else {
+                pointB = item[2];
+                pointA = item[0];
+                pointC = item[1];
+            }
 
-        // Use cross product to figure out whether A and C are correct or flipped.
-        // This asks whether BC x BA has a positive z component, which is the arrangement
-        // we want for A, B, C. If it's negative, then we've got it flipped around and
-        // should swap A and C.
-        if (this.crossProductZ(pointA, pointB, pointC) < 0.0) {
-            const temp = pointA;
-            pointA = pointC;
-            pointC = temp;
-        }
+            // Use cross product to figure out whether A and C are correct or flipped.
+            // This asks whether BC x BA has a positive z component, which is the arrangement
+            // we want for A, B, C. If it's negative, then we've got it flipped around and
+            // should swap A and C.
+            if (this.crossProductZ(pointA, pointB, pointC) < 0.0) {
+                const temp = pointA;
+                pointA = pointC;
+                pointC = temp;
+            }
 
-        patterns[0] = pointA;
-        patterns[1] = pointB;
-        patterns[2] = pointC;
+            item[0] = pointA;
+            item[1] = pointB;
+            item[2] = pointC;
+        })
     }
 
     /**
