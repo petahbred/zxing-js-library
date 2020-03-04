@@ -7,6 +7,7 @@ import FormatException from '../core/FormatException';
 import NotFoundException from '../core/NotFoundException';
 import Reader from '../core/Reader';
 import Result from '../core/Result';
+import QRCodeReader from '../core/qrcode/QRCodeReader';
 import { DecodeContinuouslyCallback } from './DecodeContinuouslyCallback';
 import { HTMLCanvasElementLuminanceSource } from './HTMLCanvasElementLuminanceSource';
 import { HTMLVisualMediaElement } from './HTMLVisualMediaElement';
@@ -18,6 +19,9 @@ import { VideoInputDevice } from './VideoInputDevice';
  * Base class for browser code reader.
  */
 export class BrowserCodeReader {
+
+  // for decodeMultiple!
+  QRCodeReader = new QRCodeReader();
 
   /**
    * If navigator is present.
@@ -477,7 +481,7 @@ export class BrowserCodeReader {
     }
 
     if (url && !source) {
-      return this.decodeFromImageUrl(url);
+      return this.decodeFromImageUrl(url)[0];
     }
 
     return this.decodeFromImageElement(source);
@@ -599,7 +603,7 @@ export class BrowserCodeReader {
   /**
    * Decodes an image from a URL.
    */
-  public decodeFromImageUrl(url?: string): Promise<Result> {
+  public decodeFromImageUrl(url?: string): Promise<Array<Result>> {
 
     if (!url) {
       throw new ArgumentException('An URL must be provided.');
@@ -611,7 +615,7 @@ export class BrowserCodeReader {
 
     this.imageElement = element;
 
-    const decodeTask = this._decodeOnLoadImage(element);
+    const decodeTask = this._decodeOnLoadImageMultiple(element);
 
     element.src = url;
 
@@ -665,6 +669,13 @@ export class BrowserCodeReader {
   private _decodeOnLoadImage(element: HTMLImageElement): Promise<Result> {
     return new Promise((resolve, reject) => {
       this.imageLoadedListener = () => this.decodeOnce(element, false, true).then(resolve, reject);
+      element.addEventListener('load', this.imageLoadedListener);
+    });
+  }
+
+  private _decodeOnLoadImageMultiple(element: HTMLImageElement): Promise<Array<Result>> {
+    return new Promise((resolve, reject) => {
+      this.imageLoadedListener = () => this.decodeOnceMultiple(element, false, true).then(resolve, reject);
       element.addEventListener('load', this.imageLoadedListener);
     });
   }
@@ -791,6 +802,39 @@ export class BrowserCodeReader {
     return new Promise((resolve, reject) => loop(resolve, reject));
   }
 
+  public decodeOnceMultiple(element: HTMLVisualMediaElement, retryIfNotFound = true, retryIfChecksumOrFormatError = true): Promise<Array<Result>> {
+
+    this._stopAsyncDecode = false;
+
+    const loop = (resolve: (value?: Array<Result> | PromiseLike<Array<Result>>) => void, reject: (reason?: any) => void) => {
+
+      if (this._stopAsyncDecode) {
+        reject(new NotFoundException('Video stream has ended before any code could be detected.'));
+        this._stopAsyncDecode = undefined;
+        return;
+      }
+
+      try {
+        const result = this.decodeMultiple(element);
+        resolve(result);
+      } catch (e) {
+
+        const ifNotFound = retryIfNotFound && e instanceof NotFoundException;
+        const isChecksumOrFormatError = e instanceof ChecksumException || e instanceof FormatException;
+        const ifChecksumOrFormat = isChecksumOrFormatError && retryIfChecksumOrFormatError;
+
+        if (ifNotFound || ifChecksumOrFormat) {
+          // trying again
+          return setTimeout(() => loop(resolve, reject), this._timeBetweenDecodingAttempts);
+        }
+
+        reject(e);
+      }
+    };
+
+    return new Promise((resolve, reject) => loop(resolve, reject));
+  }
+
   /**
    * Continuously decodes from video input.
    */
@@ -807,7 +851,7 @@ export class BrowserCodeReader {
 
       try {
         const result = this.decode(element);
-        callbackFn(result, null);
+        callbackFn(result[0], null);
         setTimeout(() => loop(), this.timeBetweenScansMillis);
       } catch (e) {
 
@@ -838,6 +882,13 @@ export class BrowserCodeReader {
     return this.decodeBitmap(binaryBitmap);
   }
 
+  public decodeMultiple(element: HTMLVisualMediaElement): Array<Result> {
+
+    // get binary bitmap for decode function
+    const binaryBitmap = this.createBinaryBitmap(element);
+
+    return this.decodeBitmapMultiple(binaryBitmap);
+  }
   /**
    * Creates a binaryBitmap based in some image source.
    *
@@ -896,6 +947,10 @@ export class BrowserCodeReader {
    */
   public decodeBitmap(binaryBitmap: BinaryBitmap): Result {
     return this.reader.decode(binaryBitmap, this._hints);
+  }
+
+  public decodeBitmapMultiple(binaryBitmap: BinaryBitmap): Array<Result> {
+    return this.QRCodeReader.decodeMultiple(binaryBitmap, this._hints);
   }
 
   /**

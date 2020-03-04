@@ -16,78 +16,77 @@
 
 /*namespace com.google.zxing {*/
 
-import MathUtils from './common/detector/MathUtils';
-import Float from './util/Float';
-
-/**
- * <p>Encapsulates a point of interest in an image containing a barcode. Typically, this
- * would be the location of a finder pattern or the corner of the barcode, for example.</p>
- *
- * @author Sean Owen
- */
-export default class ResultPoint {
-
-    public constructor(private x: number/*float*/, private y: number/*float*/) { }
-
-    public getX(): number/*float*/ {
-        return this.x;
-    }
-
-    public getY(): number/*float*/ {
-        return this.y;
-    }
-
-    /*@Override*/
-    public equals(other: Object): boolean {
-        if (other instanceof ResultPoint) {
-            const otherPoint = <ResultPoint>other;
-            return this.x === otherPoint.x && this.y === otherPoint.y;
-        }
-        return false;
-    }
-
-    /*@Override*/
-    public hashCode(): number /*int*/ {
-        return 31 * Float.floatToIntBits(this.x) + Float.floatToIntBits(this.y);
-    }
-
-    /*@Override*/
-    public toString(): string {
-        return '(' + this.x + ',' + this.y + ')';
-    }
-
+    import MathUtils from './common/detector/MathUtils';
+    import Float from './util/Float';
+    
     /**
-     * Orders an array of three ResultPoints in an order [A,B,C] such that AB is less than AC
-     * and BC is less than AC, and the angle between BC and BA is less than 180 degrees.
+     * <p>Encapsulates a point of interest in an image containing a barcode. Typically, this
+     * would be the location of a finder pattern or the corner of the barcode, for example.</p>
      *
-     * @param patterns array of three {@code ResultPoint} to order
+     * @author Sean Owen
      */
-    public static orderBestPatterns(patterns: ResultPoint[][]): void {
-
-        patterns.forEach(item => {
+    export default class ResultPoint {
+    
+        public constructor(private x: float, private y: float) { }
+    
+        public getX(): float {
+            return this.x;
+        }
+    
+        public getY(): float {
+            return this.y;
+        }
+    
+        /*@Override*/
+        public equals(other: Object): boolean {
+            if (other instanceof ResultPoint) {
+                const otherPoint = <ResultPoint>other;
+                return this.x === otherPoint.x && this.y === otherPoint.y;
+            }
+            return false;
+        }
+    
+        /*@Override*/
+        public hashCode(): int {
+            return 31 * Float.floatToIntBits(this.x) + Float.floatToIntBits(this.y);
+        }
+    
+        /*@Override*/
+        public toString(): string {
+            return '(' + this.x + ',' + this.y + ')';
+        }
+    
+        /**
+         * Orders an array of three ResultPoints in an order [A,B,C] such that AB is less than AC
+         * and BC is less than AC, and the angle between BC and BA is less than 180 degrees.
+         *
+         * @param patterns array of three {@code ResultPoint} to order
+         */
+        public static orderBestPatterns(patterns: Array<ResultPoint>): void {
+    
             // Find distances between pattern centers
-            const zeroOneDistance = this.distance(item[0], item[1]);
-            const oneTwoDistance = this.distance(item[1], item[2]);
-            const zeroTwoDistance = this.distance(item[0], item[2]);
-
+            const zeroOneDistance = this.distance(patterns[0], patterns[1]);
+            const oneTwoDistance = this.distance(patterns[1], patterns[2]);
+            const zeroTwoDistance = this.distance(patterns[0], patterns[2]);
+    
             let pointA: ResultPoint;
             let pointB: ResultPoint;
             let pointC: ResultPoint;
             // Assume one closest to other two is B; A and C will just be guesses at first
             if (oneTwoDistance >= zeroOneDistance && oneTwoDistance >= zeroTwoDistance) {
-                pointB = item[0];
-                pointA = item[1];
-                pointC = item[2];
+                pointB = patterns[0];
+                pointA = patterns[1];
+                pointC = patterns[2];
             } else if (zeroTwoDistance >= oneTwoDistance && zeroTwoDistance >= zeroOneDistance) {
-                pointB = item[1];
-                pointA = item[0];
-                pointC = item[2];
+                pointB = patterns[1];
+                pointA = patterns[0];
+                pointC = patterns[2];
             } else {
-                pointB = item[2];
-                pointA = item[0];
-                pointC = item[1];
+                pointB = patterns[2];
+                pointA = patterns[0];
+                pointC = patterns[1];
             }
-
+    
             // Use cross product to figure out whether A and C are correct or flipped.
             // This asks whether BC x BA has a positive z component, which is the arrangement
             // we want for A, B, C. If it's negative, then we've got it flipped around and
@@ -97,31 +96,71 @@ export default class ResultPoint {
                 pointA = pointC;
                 pointC = temp;
             }
+    
+            patterns[0] = pointA;
+            patterns[1] = pointB;
+            patterns[2] = pointC;
+        }
 
-            item[0] = pointA;
-            item[1] = pointB;
-            item[2] = pointC;
-        })
+        public static orderBestMultiplePatterns(patterns: Array<Array<ResultPoint>>): void {
+            patterns.forEach(code => {
+                // Find distances between pattern centers
+                const zeroOneDistance = this.distance(code[0], code[1]);
+                const oneTwoDistance = this.distance(code[1], code[2]);
+                const zeroTwoDistance = this.distance(code[0], code[2]);
+        
+                let pointA: ResultPoint;
+                let pointB: ResultPoint;
+                let pointC: ResultPoint;
+                // Assume one closest to other two is B; A and C will just be guesses at first
+                if (oneTwoDistance >= zeroOneDistance && oneTwoDistance >= zeroTwoDistance) {
+                    pointB = code[0];
+                    pointA = code[1];
+                    pointC = code[2];
+                } else if (zeroTwoDistance >= oneTwoDistance && zeroTwoDistance >= zeroOneDistance) {
+                    pointB = code[1];
+                    pointA = code[0];
+                    pointC = code[2];
+                } else {
+                    pointB = code[2];
+                    pointA = code[0];
+                    pointC = code[1];
+                }
+        
+                // Use cross product to figure out whether A and C are correct or flipped.
+                // This asks whether BC x BA has a positive z component, which is the arrangement
+                // we want for A, B, C. If it's negative, then we've got it flipped around and
+                // should swap A and C.
+                if (this.crossProductZ(pointA, pointB, pointC) < 0.0) {
+                    const temp = pointA;
+                    pointA = pointC;
+                    pointC = temp;
+                }
+        
+                code[0] = pointA;
+                code[1] = pointB;
+                code[2] = pointC;
+            })
+        }
+    
+        /**
+         * @param pattern1 first pattern
+         * @param pattern2 second pattern
+         * @return distance between two points
+         */
+        public static distance(pattern1: ResultPoint, pattern2: ResultPoint): float {
+            return MathUtils.distance(pattern1.x, pattern1.y, pattern2.x, pattern2.y);
+        }
+    
+        /**
+         * Returns the z component of the cross product between vectors BC and BA.
+         */
+        private static crossProductZ(pointA: ResultPoint,
+            pointB: ResultPoint,
+            pointC: ResultPoint): float {
+            const bX = pointB.x;
+            const bY = pointB.y;
+            return ((pointC.x - bX) * (pointA.y - bY)) - ((pointC.y - bY) * (pointA.x - bX));
+        }
+    
     }
-
-    /**
-     * @param pattern1 first pattern
-     * @param pattern2 second pattern
-     * @return distance between two points
-     */
-    public static distance(pattern1: ResultPoint, pattern2: ResultPoint): number/*float*/ {
-        return MathUtils.distance(pattern1.x, pattern1.y, pattern2.x, pattern2.y);
-    }
-
-    /**
-     * Returns the z component of the cross product between vectors BC and BA.
-     */
-    private static crossProductZ(pointA: ResultPoint,
-        pointB: ResultPoint,
-        pointC: ResultPoint): number/*float*/ {
-        const bX = pointB.x;
-        const bY = pointB.y;
-        return ((pointC.x - bX) * (pointA.y - bY)) - ((pointC.y - bY) * (pointA.x - bX));
-    }
-
-}

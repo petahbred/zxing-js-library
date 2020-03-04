@@ -22,6 +22,6 @@ export class BrowserMultiFormatReader extends BrowserCodeReader {
    * attention to the hints set in the constructor function
    */
   public decodeBitmap(binaryBitmap: BinaryBitmap): Result {
-    return this.reader.decodeWithState(binaryBitmap);
+    return this.reader.decodeWithState(binaryBitmap)[0];
   }
 }
