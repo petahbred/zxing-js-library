@@ -668,14 +668,14 @@ export class BrowserCodeReader {
 
   private _decodeOnLoadImage(element: HTMLImageElement): Promise<Result> {
     return new Promise((resolve, reject) => {
-      this.imageLoadedListener = () => this.decodeOnce(element, false, true).then(resolve, reject);
+      this.imageLoadedListener = () => this.decodeOnce(element, false, false).then(resolve, reject);
       element.addEventListener('load', this.imageLoadedListener);
     });
   }
 
   private _decodeOnLoadImageMultiple(element: HTMLImageElement): Promise<Array<Result>> {
     return new Promise((resolve, reject) => {
-      this.imageLoadedListener = () => this.decodeOnceMultiple(element, false, true).then(resolve, reject);
+      this.imageLoadedListener = () => this.decodeOnceMultiple(element, false, false).then(resolve, reject);
       element.addEventListener('load', this.imageLoadedListener);
     });
   }
